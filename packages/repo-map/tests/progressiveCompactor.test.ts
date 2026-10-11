@@ -75,9 +75,11 @@ def process_data(items):
     expect(collapsed).not.toContain("this.db.save({ email, pass })");
   });
   it("preserves top-level control-flow blocks in Stage 2", () => {
-  const code = `
+    const code = `
 if (ready) {
   runTask();
+} else if (pending) {
+  queueTask();
 }
 
 for (const item of items) {
@@ -96,7 +98,7 @@ switch (value) {
 
 try {
   risky();
-} catch (error) {
+}catch (error) {
   handleError(error);
 }
 
@@ -105,15 +107,16 @@ with (context) {
 }
 `;
 
-  const result = collapseFunctionBodies(code);
+    const result = collapseFunctionBodies(code);
 
-  expect(result).toContain("runTask();");
-  expect(result).toContain("process(item);");
-  expect(result).toContain("wait();");
-  expect(result).toContain("handleOne();");
-  expect(result).toContain("handleError(error);");
-  expect(result).toContain("useContext();");
-});
+    expect(result).toContain("runTask();");
+    expect(result).toContain("queueTask();");
+    expect(result).toContain("process(item);");
+    expect(result).toContain("wait();");
+    expect(result).toContain("handleOne();");
+    expect(result).toContain("handleError(error);");
+    expect(result).toContain("useContext();");
+  });
 
   it("extracts export and interface outline in Stage 3", () => {
     const outline = extractExportOutline(SAMPLE_TS);
@@ -125,7 +128,9 @@ with (context) {
   });
 
   it("returns stage 0 when code already fits under maxTargetTokens", () => {
-    const result = progressiveCompact("const x = 1;", { maxTargetTokens: 1000 });
+    const result = progressiveCompact("const x = 1;", {
+      maxTargetTokens: 1000,
+    });
 
     expect(result.stage).toBe(0);
     expect(result.reductionPercentage).toBe(0);
@@ -172,9 +177,17 @@ with (context) {
     expect(result.code).toContain("export interface UserDTO");
   });
   it("preserves control-flow blocks when Stage 2 is selected by budget", () => {
-  const code = `
+    const code = `
 if (ready) {
   runTask();
+} else if (pending) {
+  queueTask();
+}
+
+try {
+  risky();
+}catch (error) {
+  handleError(error);
 }
 
 for (const item of items) {
@@ -190,21 +203,23 @@ function largeFunction() {
 }
 `;
 
-  const stage1 = stripComments(code);
-  const stage2 = collapseFunctionBodies(stage1);
+    const stage1 = stripComments(code);
+    const stage2 = collapseFunctionBodies(stage1);
 
-  const stage1Tokens = Math.ceil(stage1.length / 3.8);
-  const stage2Tokens = Math.ceil(stage2.length / 3.8);
+    const stage1Tokens = Math.ceil(stage1.length / 3.8);
+    const stage2Tokens = Math.ceil(stage2.length / 3.8);
 
-  const result = progressiveCompact(code, {
-    maxTargetTokens: stage2Tokens,
+    const result = progressiveCompact(code, {
+      maxTargetTokens: stage2Tokens,
+    });
+
+    expect(stage1Tokens).toBeGreaterThan(stage2Tokens);
+    expect(result.stage).toBe(2);
+
+    expect(result.code).toContain("runTask();");
+    expect(result.code).toContain("queueTask();");
+    expect(result.code).toContain("handleError(error);");
+    expect(result.code).toContain("process(item);");
+    expect(result.code).toContain("function largeFunction()");
   });
-
-  expect(stage1Tokens).toBeGreaterThan(stage2Tokens);
-  expect(result.stage).toBe(2);
-
-  expect(result.code).toContain("runTask();");
-  expect(result.code).toContain("process(item);");
-  expect(result.code).toContain("function largeFunction()");
-});
 });

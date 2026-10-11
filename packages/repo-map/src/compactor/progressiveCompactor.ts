@@ -3,9 +3,7 @@ import type {
   CompactedCodeResult,
   CompactorOptions,
 } from "./compactionLevels.js";
-/**
- * Stage 1: Strip single-line, multi-line comments and docstrings.
- */
+
 const CONTROL_FLOW_KEYWORDS = new Set([
   "if",
   "for",
@@ -15,20 +13,28 @@ const CONTROL_FLOW_KEYWORDS = new Set([
   "with",
 ]);
 
+/**
+ * Stage 1: Strip single-line, multi-line comments and docstrings.
+ */
 export function stripComments(code: string, language?: string): string {
   const isPython = language?.toLowerCase().includes("python") || language?.toLowerCase() === "py";
 
   let result = code;
   if (!isPython) {
-     result = result.replace(/\/\*[\s\S]*?\*\//g, "");
-     result = result.replace(/(^|[^\\])\/\/.*$/gm, "$1");
+    // Strip multi-line comments /* ... */
+    result = result.replace(/\/\*[\s\S]*?\*\//g, "");
+    // Strip single-line comments // ...
+    result = result.replace(/(^|[^\\])\/\/.*$/gm, "$1");
   } else {
-     result = result.replace(/(^|[^\\])#.*$/gm, "$1");
-     result = result.replace(/"""[\s\S]*?"""/g, '"""..."""');
+    // Python comments # ...
+    result = result.replace(/(^|[^\\])#.*$/gm, "$1");
+    // Python triple-quoted docstrings """ ... """
+    result = result.replace(/"""[\s\S]*?"""/g, '"""..."""');
     result = result.replace(/'''[\s\S]*?'''/g, "'''...'''");
   }
 
-   return result
+  // Remove empty comment lines and excessive consecutive blank lines
+  return result
     .split("\n")
     .map((line) => line.trimEnd())
     .filter((line, idx, arr) => line.length > 0 || (idx > 0 && arr[idx - 1].length > 0))
@@ -49,8 +55,9 @@ export function collapseFunctionBodies(code: string): string {
     const line = lines[i];
     const trimmed = line.trim();
 
-     const isClassHeader = /^(export\s+)?(abstract\s+)?class\s+/.test(trimmed);
-    const firstWord = trimmed.match(/^[A-Za-z_$][A-Za-z0-9_$]*/)?.[0];
+    // Check if line looks like a function, method, constructor, or arrow function
+    const isClassHeader = /^(export\s+)?(abstract\s+)?class\s+/.test(trimmed);
+    const firstWord = trimmed.match(/^(?:}\s*)?(?:else\s+)?([A-Za-z_$][A-Za-z0-9_$]*)/)?.[1];
 
     const isGenericSignature =
       !CONTROL_FLOW_KEYWORDS.has(firstWord ?? "") &&
