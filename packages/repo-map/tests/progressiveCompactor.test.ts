@@ -109,6 +109,7 @@ with (context) {
 
     const result = collapseFunctionBodies(code);
 
+    expect(result).toBe(code);
     expect(result).toContain("runTask();");
     expect(result).toContain("queueTask();");
     expect(result).toContain("process(item);");
@@ -216,6 +217,8 @@ function largeFunction() {
     expect(stage1Tokens).toBeGreaterThan(stage2Tokens);
     expect(result.stage).toBe(2);
 
+    expect(result.code).toContain("} else if (pending) {\n  queueTask();\n}");
+    expect(result.code).toContain("}catch (error) {\n  handleError(error);\n}");
     expect(result.code).toContain("runTask();");
     expect(result.code).toContain("queueTask();");
     expect(result.code).toContain("handleError(error);");
